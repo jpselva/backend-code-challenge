@@ -16,10 +16,12 @@ async fn main() {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
+    let nodes_endpoint = dotenvy::var("NODES_ENDPOINT")
+        .expect("NODES_ENDPOINT not defined");
+    tokio::spawn(async { pool_nodes(nodes_endpoint).await });
+
     let app = Router::new()
         .route("/nodes", get(get_nodes));
-
-    tokio::spawn(async { pool_nodes().await });
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
     axum::serve(listener, app).await.unwrap();
@@ -34,18 +36,18 @@ struct LightningNode {
     capacity: u64,
 }
 
-async fn pool_nodes() {
+async fn pool_nodes(endpoint: String) {
     loop {
         tokio::time::sleep(Duration::from_millis(1000)).await;
-        let res = request_nodes().await;
+        let res = request_nodes(&endpoint).await;
         if let Err(msg) = res {
             tracing::warn!("Fetching list of nodes failed: {msg}");
         }
     };
 }
 
-async fn request_nodes() -> Result<Vec<LightningNode>, reqwest::Error> {
-    let res: Vec<LightningNode> = reqwest::get("https://mempool.space/api/v1/lightning/nodes/rankings/connectivity")
+async fn request_nodes(endpoint: &str) -> Result<Vec<LightningNode>, reqwest::Error> {
+    let res: Vec<LightningNode> = reqwest::get(endpoint)
         .await?
         .json()
         .await?;

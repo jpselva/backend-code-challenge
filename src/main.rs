@@ -6,6 +6,7 @@ use axum::{
 use std::time::Duration;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use sqlx::{postgres::{PgPool, PgPoolOptions}, Postgres, QueryBuilder, Execute};
+use code_challenge::Node;
 
 mod node_api;
 
@@ -55,8 +56,31 @@ async fn pool_nodes(endpoint: String, db_pool: PgPool) {
         if let Err(msg) = res {
             tracing::warn!("Fetching list of nodes failed: {msg}");
         } else if let Ok(nodes) = res {
-            // TODO
+            let result = update_nodes(nodes, &db_pool);
+
+            if let Err(msg) = result.await {
+                tracing::warn!("Database update failed: {msg}");
+            }
         }
     };
+}
+
+async fn update_nodes(nodes: Vec<Node>, db_pool: &PgPool) -> 
+    Result<(), Box<dyn std::error::Error>> {
+    let mut transaction = db_pool.begin().await?;
+    sqlx::query!("DELETE FROM Nodes").execute(&mut *transaction).await?;
+
+    for node in nodes {
+        sqlx::query!("INSERT INTO Nodes (public_key, alias, first_seen, capacity) VALUES ($1, $2, $3, $4)", 
+            node.public_key, 
+            node.alias, 
+            node.first_seen, 
+            node.capacity
+            ).execute(&mut *transaction).await?;
+    }
+
+    transaction.commit().await?;
+
+    Ok(())
 }
 

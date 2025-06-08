@@ -8,9 +8,9 @@ use axum::{
 use std::time::Duration;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use sqlx::postgres::{PgPool, PgPoolOptions};
-use mempool_api::request_nodes;
 use api::{get_response_from_node, NodeResponse};
 use db::{update_node_database, retrieve_nodes_from_database};
+use mempool_api::request_nodes;
 
 mod api;
 mod db;
@@ -39,6 +39,7 @@ async fn main() {
     let nodes_endpoint = dotenvy::var("NODES_ENDPOINT")
         .expect("NODES_ENDPOINT not defined");
 
+    // spawn task to pool external api periodically
     let db_clone = db_pool.clone();
     tokio::spawn(async { pool_nodes(nodes_endpoint, db_clone).await });
 
@@ -55,23 +56,22 @@ async fn get_nodes(State(db_pool): State<PgPool>) ->
                                    Result<Json<Vec<NodeResponse>>, StatusCode> {
     let result = get_nodes_as_json(db_pool).await;
 
-    if let Ok(nodes) = result {
-        Ok(Json(nodes))
+    if let Ok(json) = result {
+        Ok(json)
     } else {
         Err(StatusCode::INTERNAL_SERVER_ERROR)
     }
 }
 
 async fn get_nodes_as_json(db_pool: PgPool) 
-    -> Result<Vec<NodeResponse>, Box<dyn std::error::Error>> {
+    -> Result<Json<Vec<NodeResponse>>, Box<dyn std::error::Error>> {
     let nodes: Vec<_> = retrieve_nodes_from_database(&db_pool)
         .await?
         .into_iter()
         .map(get_response_from_node)
         .collect();
 
-    //let json = serde_json::to_string(&nodes)?;
-    Ok(nodes)
+    Ok(Json(nodes))
 }
 
 async fn pool_nodes(endpoint: String, db_pool: PgPool) {

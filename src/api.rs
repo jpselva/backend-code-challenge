@@ -10,7 +10,10 @@ pub struct NodeResponse {
 }
 
 pub fn get_response_from_node(node: Node) -> NodeResponse {
+    // convert from satoshis to btc
     let capacity = (node.capacity as f64 / 100000000.0).to_string();
+
+    // format date string
     let first_seen = node.first_seen.format("%Y-%M-%DT%H:%M:%S%Z").to_string();
 
     NodeResponse {

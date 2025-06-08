@@ -14,7 +14,7 @@ pub fn get_response_from_node(node: Node) -> NodeResponse {
     let capacity = (node.capacity as f64 / 100000000.0).to_string();
 
     // format date string
-    let first_seen = node.first_seen.format("%Y-%M-%DT%H:%M:%S%Z").to_string();
+    let first_seen = node.first_seen.format("%Y-%m-%dT%H:%M:%S%Z").to_string();
 
     NodeResponse {
         public_key: node.public_key,

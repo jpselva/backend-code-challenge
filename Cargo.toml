@@ -13,3 +13,4 @@ sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "any", "postgres"]
 reqwest = { version = "0.12", features = ["json"] }
 dotenvy = "0.15.7"
 serde = "1.0.219"
+chrono = "0.4.41"

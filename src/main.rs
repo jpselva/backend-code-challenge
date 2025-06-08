@@ -4,9 +4,10 @@ use axum::{
     extract::State,
 };
 use std::time::Duration;
-use serde::Deserialize;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-use sqlx::postgres::{PgPool, PgPoolOptions};
+use sqlx::{postgres::{PgPool, PgPoolOptions}, Postgres, QueryBuilder, Execute};
+
+mod node_api;
 
 #[tokio::main]
 async fn main() {
@@ -47,30 +48,15 @@ async fn get_nodes(State(db_pool): State<PgPool>) -> &'static str {
     "UNDER CONSTRUCTION"
 }
 
-#[derive(Debug, Deserialize)]
-struct LightningNode {
-    #[serde(rename = "publicKey")]
-    public_key: String,
-    alias: String,
-    channels: u32,
-    capacity: u64,
-}
-
 async fn pool_nodes(endpoint: String, db_pool: PgPool) {
     loop {
         tokio::time::sleep(Duration::from_millis(1000)).await;
-        let res = request_nodes(&endpoint).await;
+        let res = node_api::request_nodes(&endpoint).await;
         if let Err(msg) = res {
             tracing::warn!("Fetching list of nodes failed: {msg}");
+        } else if let Ok(nodes) = res {
+            // TODO
         }
     };
-}
-
-async fn request_nodes(endpoint: &str) -> Result<Vec<LightningNode>, reqwest::Error> {
-    let res: Vec<LightningNode> = reqwest::get(endpoint)
-        .await?
-        .json()
-        .await?;
-    Ok(res)
 }
 

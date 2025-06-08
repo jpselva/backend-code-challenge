@@ -1,0 +1,22 @@
+use code_challenge::Node;
+use serde::Serialize;
+
+#[derive(Debug, Serialize)]
+pub struct NodeResponse {
+    pub public_key: String,
+    pub capacity: String,
+    pub alias: String,
+    pub first_seen: String,
+}
+
+pub fn get_response_from_node(node: Node) -> NodeResponse {
+    let capacity = (node.capacity as f64 / 100000000.0).to_string();
+    let first_seen = node.first_seen.format("%Y-%M-%DT%H:%M:%S%Z").to_string();
+
+    NodeResponse {
+        public_key: node.public_key,
+        capacity,
+        alias: node.alias,
+        first_seen,
+    }
+}

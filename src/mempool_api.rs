@@ -4,7 +4,7 @@ use std::time::{UNIX_EPOCH, Duration};
 use chrono::{Utc, prelude::DateTime};
 
 #[derive(Debug, Deserialize)]
-struct NodeResponse {
+struct MemPoolNodeResponse {
     #[serde(rename = "publicKey")]
     public_key: String,
     alias: String,
@@ -14,18 +14,18 @@ struct NodeResponse {
 }
 
 pub async fn request_nodes(endpoint: &str) -> Result<Vec<Node>, reqwest::Error> {
-    let resp: Vec<NodeResponse> = reqwest::get(endpoint)
+    let resp: Vec<MemPoolNodeResponse> = reqwest::get(endpoint)
         .await?
         .json()
         .await?;
 
     Ok(resp
         .into_iter()
-        .map(response_to_node)
+        .map(convert_response_to_node)
         .collect())
 }
 
-fn response_to_node(resp: NodeResponse) -> Node {
+fn convert_response_to_node(resp: MemPoolNodeResponse) -> Node {
     let first_seen = UNIX_EPOCH + Duration::from_secs(resp.first_seen);
     let time_str = DateTime::<Utc>::from(first_seen);
 

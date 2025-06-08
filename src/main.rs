@@ -2,13 +2,19 @@ use axum::{
     Router, 
     routing::get,
     extract::State,
+    http::StatusCode,
+    Json,
 };
 use std::time::Duration;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-use sqlx::{postgres::{PgPool, PgPoolOptions}, Postgres, QueryBuilder, Execute};
-use code_challenge::Node;
+use sqlx::postgres::{PgPool, PgPoolOptions};
+use mempool_api::request_nodes;
+use api::{get_response_from_node, NodeResponse};
+use db::{update_node_database, retrieve_nodes_from_database};
 
-mod node_api;
+mod api;
+mod db;
+mod mempool_api;
 
 #[tokio::main]
 async fn main() {
@@ -45,18 +51,38 @@ async fn main() {
     axum::serve(listener, app).await.unwrap();
 }
 
-async fn get_nodes(State(db_pool): State<PgPool>) -> &'static str {
-    "UNDER CONSTRUCTION"
+async fn get_nodes(State(db_pool): State<PgPool>) -> 
+                                   Result<Json<Vec<NodeResponse>>, StatusCode> {
+    let result = get_nodes_as_json(db_pool).await;
+
+    if let Ok(nodes) = result {
+        Ok(Json(nodes))
+    } else {
+        Err(StatusCode::INTERNAL_SERVER_ERROR)
+    }
+}
+
+async fn get_nodes_as_json(db_pool: PgPool) 
+    -> Result<Vec<NodeResponse>, Box<dyn std::error::Error>> {
+    let nodes: Vec<_> = retrieve_nodes_from_database(&db_pool)
+        .await?
+        .into_iter()
+        .map(get_response_from_node)
+        .collect();
+
+    //let json = serde_json::to_string(&nodes)?;
+    Ok(nodes)
 }
 
 async fn pool_nodes(endpoint: String, db_pool: PgPool) {
     loop {
         tokio::time::sleep(Duration::from_millis(1000)).await;
-        let res = node_api::request_nodes(&endpoint).await;
+        let res = request_nodes(&endpoint).await;
+
         if let Err(msg) = res {
             tracing::warn!("Fetching list of nodes failed: {msg}");
         } else if let Ok(nodes) = res {
-            let result = update_nodes(nodes, &db_pool);
+            let result = update_node_database(nodes, &db_pool);
 
             if let Err(msg) = result.await {
                 tracing::warn!("Database update failed: {msg}");
@@ -64,23 +90,3 @@ async fn pool_nodes(endpoint: String, db_pool: PgPool) {
         }
     };
 }
-
-async fn update_nodes(nodes: Vec<Node>, db_pool: &PgPool) -> 
-    Result<(), Box<dyn std::error::Error>> {
-    let mut transaction = db_pool.begin().await?;
-    sqlx::query!("DELETE FROM Nodes").execute(&mut *transaction).await?;
-
-    for node in nodes {
-        sqlx::query!("INSERT INTO Nodes (public_key, alias, first_seen, capacity) VALUES ($1, $2, $3, $4)", 
-            node.public_key, 
-            node.alias, 
-            node.first_seen, 
-            node.capacity
-            ).execute(&mut *transaction).await?;
-    }
-
-    transaction.commit().await?;
-
-    Ok(())
-}
-

@@ -1,5 +1,5 @@
 use code_challenge::Node;
-use serde::Serialize;
+use serde::{Serialize, Deserialize};
 
 #[derive(Debug, Serialize)]
 pub struct NodeResponse {
@@ -7,6 +7,11 @@ pub struct NodeResponse {
     pub capacity: String,
     pub alias: String,
     pub first_seen: String,
+}
+
+#[derive(Deserialize)]
+pub struct QueryParams {
+    pub order: Option<String>,
 }
 
 pub fn get_response_from_node(node: Node) -> NodeResponse {

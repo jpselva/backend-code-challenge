@@ -1,14 +1,14 @@
 use axum::{
     Router, 
     routing::get,
-    extract::State,
+    extract::{State, Query},
     http::StatusCode,
     Json,
 };
 use std::time::Duration;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use sqlx::postgres::{PgPool, PgPoolOptions};
-use api::{get_response_from_node, NodeResponse};
+use api::{get_response_from_node, NodeResponse, QueryParams};
 use db::{update_node_database, retrieve_nodes_from_database};
 use mempool_api::request_nodes;
 
@@ -52,9 +52,19 @@ async fn main() {
     axum::serve(listener, app).await.unwrap();
 }
 
-async fn get_nodes(State(db_pool): State<PgPool>) -> 
+fn order_param_to_enum(order_str: &str) -> OrderBy {
+    match order_str {
+        "capacity" => OrderBy::Capacity,
+        _ => OrderBy::None,
+    }
+}
+
+async fn get_nodes(State(db_pool): State<PgPool>, params: Query<QueryParams>) -> 
                                    Result<Json<Vec<NodeResponse>>, StatusCode> {
-    let result = get_nodes_as_json(db_pool).await;
+    let result = match params.order.as_deref() {
+        None => get_nodes_as_json(db_pool, OrderBy::None).await,
+        Some(order) => get_nodes_as_json(db_pool, order_param_to_enum(order)).await,
+    };
 
     if let Ok(json) = result {
         Ok(json)
@@ -63,13 +73,21 @@ async fn get_nodes(State(db_pool): State<PgPool>) ->
     }
 }
 
-async fn get_nodes_as_json(db_pool: PgPool) 
+enum OrderBy {
+    None,
+    Capacity, 
+}
+
+async fn get_nodes_as_json(db_pool: PgPool, order_by: OrderBy) 
     -> Result<Json<Vec<NodeResponse>>, Box<dyn std::error::Error>> {
-    let nodes: Vec<_> = retrieve_nodes_from_database(&db_pool)
-        .await?
-        .into_iter()
-        .map(get_response_from_node)
-        .collect();
+    let mut nodes = retrieve_nodes_from_database(&db_pool).await?;
+
+    match order_by {
+        OrderBy::Capacity => nodes.sort_by_key(|n| n.capacity),
+        OrderBy::None => {},
+    }
+
+    let nodes = nodes.into_iter().map(get_response_from_node).collect();
 
     Ok(Json(nodes))
 }
